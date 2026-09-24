@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DiskPilot · 磁盘空间诊断</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">◫</span><strong>DiskPilot</strong><span class="brand-sub">磁盘空间诊断</span></div>
+    <div class="top-actions"><span class="local-dot"></span><span>仅在本机运行</span><button id="download" class="button subtle" disabled>↓ 导出报告</button></div>
+  </header>
+  <main>
+    <section class="workspace">
+      <div class="section-heading"><div><p class="eyebrow">工作台</p><h1>查看空间去向</h1></div><p class="subtitle">选择要检查的文件夹或磁盘。</p></div>
+      <div class="source-grid">
+        <div class="source-block">
+          <div class="source-title"><span class="source-icon amber">⌕</span><div><h2>WizTree 扫描</h2><p>选择文件夹或输入路径</p></div></div>
+          <div class="scan-row"><input id="scan-path" type="text" placeholder="C:\Users\..." aria-label="扫描路径" spellcheck="false"><button id="browse" class="button secondary">选择文件夹</button><button id="scan" class="button outline" disabled>扫描路径</button></div>
+        </div>
+      </div>
+      <div id="status" class="status" role="status"><span class="status-indicator"></span><span>等待选择扫描位置</span></div>
+    </section>
+
+    <section id="results" class="results hidden">
+      <div class="section-heading compact"><div><p class="eyebrow">分析结果</p><h2>空间总览</h2></div><div id="meta" class="meta"></div></div>
+      <div id="volumes" class="volumes"></div>
+      <div class="metrics"><div><span>文件占用估计</span><strong id="total">—</strong></div><div><span>文件数</span><strong id="files">—</strong></div><div><span>文件夹数</span><strong id="folders">—</strong></div><div><span>跳过项</span><strong id="skipped">—</strong></div></div>
+      <div class="content-grid">
+        <div class="panel"><div class="panel-heading"><h3>按用途分类</h3><span>占用估计</span></div><div id="categories"></div></div>
+        <div class="panel"><div class="panel-heading"><h3>处理方案</h3><span>候选空间上限</span></div><div class="plan-tabs" role="tablist"><button class="active" data-plan="light">轻度</button><button data-plan="medium">中度</button><button data-plan="heavy">重度</button></div><div id="plan"></div></div>
+      </div>
+      <div class="panel details"><div class="panel-heading"><h3>最大路径</h3><div class="view-tabs"><button class="active" data-view="folders">文件夹</button><button data-view="files">文件</button></div></div><div class="table-wrap"><table><thead><tr><th>路径</th><th>类别</th><th class="number">大小</th></tr></thead><tbody id="items"></tbody></table></div></div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

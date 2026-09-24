@@ -1,0 +1,15 @@
+{
+  "name": "diskpilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first Windows disk space report and migration planner",
+  "scripts": {
+    "start": "node src/server.js",
+    "desktop": "node scripts/desktop.js",
+    "build:desktop": "node scripts/build-bridge.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
