@@ -5,6 +5,15 @@ let currentPlan = 'light';
 let currentView = 'folders';
 let pickingFolder = false;
 let statusOverride = null;
+let busy = false;
+let submitting = false;
+
+function updateControls() {
+  const locked = busy || submitting || pickingFolder;
+  $('#scan').disabled = locked || !$('#scan-path').value.trim();
+  $('#browse').disabled = locked;
+  $('#demo').disabled = locked;
+}
 
 function node(tag, className, value) {
   const item = document.createElement(tag);
@@ -22,6 +31,7 @@ function setStatus(message, kind = '') {
 function renderCategories() {
   const host = $('#categories');
   host.replaceChildren();
+  if (!result.categories.length) host.append(node('p', 'empty-inline', '没有可分类的文件占用。可尝试其他文件夹。'));
   const max = Math.max(...result.categories.map(item => item.bytes), 1);
   for (const item of result.categories) {
     const row = node('div', 'category-row');
@@ -45,22 +55,27 @@ function renderPlan() {
   summary.append(node('strong', '', bytes(plan.candidateBytes)), node('p', '', plan.detail));
   const target = result.volumes?.find(item => item.drive === 'D:');
   const capacityNote = currentPlan === 'heavy' && target && plan.candidateBytes > target.freeBytes * 0.9 ? ' 若全部迁移到 D 盘，现有剩余空间可能不足。' : '';
-  const warning = node('p', 'plan-warning', `这是候选空间上限，实际可释放量需逐项确认。${capacityNote}`);
+  const warning = node('p', 'plan-warning', `这是候选空间上限，实际可释放量需逐项确认。文件夹可能嵌套，请勿累加；所有操作由你自行决定。${capacityNote}`);
   host.append(summary, warning);
-  if (!plan.candidates.length) host.append(node('p', 'empty-inline', '没有找到对应的大文件夹。'));
+  if (!plan.candidates.length) host.append(node('p', 'empty-inline', '当前方案没有可列出的候选文件夹；可查看文件明细或切换方案，无需为了释放空间而强行清理。'));
   for (const item of plan.candidates.slice(0, 8)) {
     const row = node('div', 'candidate');
     row.append(node('span', 'candidate-path', item.path), node('strong', '', bytes(item.bytes)));
     row.title = item.path;
     host.append(row);
   }
-  document.querySelectorAll('[data-plan]').forEach(button => button.classList.toggle('active', button.dataset.plan === currentPlan));
+  document.querySelectorAll('[data-plan]').forEach(button => { button.classList.toggle('active', button.dataset.plan === currentPlan); button.setAttribute('aria-pressed', String(button.dataset.plan === currentPlan)); });
 }
 
 function renderItems() {
   const host = $('#items');
   host.replaceChildren();
   const items = currentView === 'folders' ? result.topFolders : result.topFiles;
+  if (!items.length) {
+    const row = node('tr');
+    const cell = node('td', 'empty-inline', '暂无路径明细，可切换文件 / 文件夹查看。');
+    cell.colSpan = 3; row.append(cell); host.append(row);
+  }
   for (const item of items.slice(0, 50)) {
     const row = node('tr');
     const pathCell = node('td', 'path-cell', item.path);
@@ -75,6 +90,8 @@ function renderItems() {
 function render() {
   if (!result) return;
   $('#results').classList.remove('hidden');
+  $('#empty').classList.add('hidden');
+  $('#demo-notice').classList.toggle('hidden', !result.demo);
   $('#download').disabled = false;
   $('#total').textContent = bytes(result.allocatedBytes);
   $('#files').textContent = result.fileCount.toLocaleString();
@@ -92,23 +109,28 @@ function render() {
 async function state() {
   const response = await fetch('/api/state');
   const data = await response.json();
-  $('#scan').disabled = data.busy || pickingFolder || !$('#scan-path').value.trim();
-  $('#browse').disabled = data.busy || pickingFolder;
+  busy = data.busy;
+  updateControls();
   if (pickingFolder) return;
   if (data.busy) setStatus(data.status, 'working');
   else if (statusOverride) setStatus(statusOverride.message, statusOverride.kind);
   else if (data.error) setStatus(data.error, 'error');
   else if (data.result) {
-    setStatus(`分析完成 · ${new Date(data.result.scannedAt).toLocaleString()}`, 'done');
+    setStatus(`${data.result.demo ? '示例报告已加载（非本机扫描）' : '分析完成'} · ${new Date(data.result.scannedAt).toLocaleString()}`, 'done');
     if (result?.scannedAt !== data.result.scannedAt) { result = data.result; render(); }
   }
 }
 
 async function request(url, options) {
+  if (busy || submitting || pickingFolder) return;
+  submitting = true;
+  updateControls();
   try {
     statusOverride = null;
     setStatus('正在分析…', 'working');
     result = null;
+    $('#download').disabled = true;
+    $('#empty').classList.remove('hidden');
     $('#results').classList.add('hidden');
     const response = await fetch(url, options);
     const data = await response.json();
@@ -117,14 +139,15 @@ async function request(url, options) {
   } catch (error) {
     statusOverride = { message: error.message, kind: 'error' };
     setStatus(error.message, 'error');
-  }
+  } finally { submitting = false; updateControls(); }
 }
 
+$('#demo').addEventListener('click', () => request('/api/demo', { method: 'POST' }));
 $('#scan').addEventListener('click', () => request('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: $('#scan-path').value }) }));
 $('#browse').addEventListener('click', async () => {
   pickingFolder = true;
   statusOverride = null;
-  $('#browse').disabled = true;
+  updateControls();
   setStatus('等待选择文件夹…', 'working');
   try {
     const response = await fetch('/api/choose-folder', { method: 'POST' });
@@ -141,12 +164,13 @@ $('#browse').addEventListener('click', async () => {
     statusOverride = { message: error.message, kind: 'error' };
     setStatus(error.message, 'error');
   }
-  finally { pickingFolder = false; $('#browse').disabled = false; }
+  finally { pickingFolder = false; updateControls(); }
 });
 $('#scan-path').addEventListener('keydown', event => { if (event.key === 'Enter') $('#scan').click(); });
-$('#scan-path').addEventListener('input', event => { $('#scan').disabled = !event.target.value.trim(); });
+$('#scan-path').addEventListener('input', updateControls);
 $('#download').addEventListener('click', () => { window.location.href = '/api/report'; });
 document.querySelectorAll('[data-plan]').forEach(button => button.addEventListener('click', () => { currentPlan = button.dataset.plan; renderPlan(); }));
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => { currentView = button.dataset.view; renderItems(); }));
-state();
-setInterval(state, 1500);
+function refreshState() { state().catch(() => setStatus('无法连接本机服务，请确认 npm start 正在运行。', 'error')); }
+refreshState();
+setInterval(refreshState, 1500);
