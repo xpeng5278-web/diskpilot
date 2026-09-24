@@ -1,7 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { markdownReport } = require('./analyzer');
+const { markdownReport, analyzeWizTreeCsv } = require('./analyzer');
 const { scanWithWizTree } = require('./wiztree');
 const { chooseFolder } = require('./folder-picker');
 
@@ -29,7 +29,7 @@ function begin(task) {
   state.result = null;
   Promise.resolve().then(task).then(result => {
     state.result = result;
-    state.status = '分析完成';
+    state.status = result.demo ? '示例报告已加载（非本机扫描）' : '分析完成';
   }).catch(error => {
     state.error = error.message;
     state.status = '分析失败';
@@ -48,6 +48,12 @@ async function handler(request, response) {
       if (!state.result) return json(response, 404, { error: '还没有报告' });
       response.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Content-Disposition': 'attachment; filename="diskpilot-report.md"', 'Cache-Control': 'no-store' });
       return response.end(markdownReport(state.result));
+    }
+    if (request.method === 'POST' && url.pathname === '/api/demo') {
+      if (state.busy) return json(response, 409, { error: '已有分析正在运行' });
+      state.status = '正在加载示例报告…';
+      begin(() => analyzeWizTreeCsv(path.join(__dirname, '..', 'test', 'fixtures', 'wiztree-sample.csv'), 'C:\\Users\\demo\\Downloads', { demo: true }));
+      return json(response, 202, { accepted: true });
     }
     if (request.method === 'POST' && url.pathname === '/api/scan') {
       if (state.busy) return json(response, 409, { error: '已有扫描正在运行' });

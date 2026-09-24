@@ -115,8 +115,8 @@ function volumeInfo(drive) {
   } catch { return null; }
 }
 
-async function analyzeWizTreeCsv(filePath, scanRoot) {
-  const accumulator = createAccumulator('WizTree 本机扫描', scanRoot || filePath);
+async function analyzeWizTreeCsv(filePath, scanRoot, { demo = false } = {}) {
+  const accumulator = createAccumulator(demo ? '示例数据（非本机扫描）' : 'WizTree 本机扫描', scanRoot || filePath);
   const handle = await fs.promises.open(filePath, 'r');
   const bom = Buffer.alloc(3);
   await handle.read(bom, 0, 3, 0);
@@ -156,7 +156,8 @@ async function analyzeWizTreeCsv(filePath, scanRoot) {
   if (!columns) throw new Error('未找到 WizTree CSV 表头');
   const result = accumulator.result();
   result.root = scanRoot || scannedDrive || filePath;
-  result.volumes = [volumeInfo(scannedDrive), volumeInfo('D:')].filter(Boolean).filter((item, index, all) => all.findIndex(other => other.drive === item.drive) === index);
+  result.demo = demo;
+  result.volumes = demo ? [] : [volumeInfo(scannedDrive), volumeInfo('D:')].filter(Boolean).filter((item, index, all) => all.findIndex(other => other.drive === item.drive) === index);
   return result;
 }
 
