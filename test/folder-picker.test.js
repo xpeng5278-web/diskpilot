@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const net = require('node:net');
 const { chooseFolder } = require('../src/folder-picker');
 
-test('desktop bridge returns an absolute Unicode folder path', async () => {
+test('desktop bridge returns an absolute Unicode folder path', { skip: process.platform !== 'win32' }, async () => {
   const expected = 'D:\\资料\\项目';
   const server = net.createServer(socket => {
     socket.once('data', data => {
