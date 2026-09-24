@@ -99,3 +99,11 @@ th, td { padding: 10px; border-bottom: 1px solid #edf1f2; }
 .empty-state h2 { font-size: 18px; }
 .status span:last-child { white-space: normal; overflow-wrap: anywhere; }
 button:focus-visible { outline: 2px solid #0e655e; outline-offset: 3px; }
+
+.review-summary { color: #285e56; background: #edf6f3; padding: 10px; font-size: 12px; line-height: 1.7; }
+.candidate-list { max-height: 360px; overflow-y: auto; margin-top: 10px; }
+.candidate { align-items: start; cursor: pointer; gap: 9px; }
+.candidate input { accent-color: #0e655e; flex: none; margin: 2px; }
+.candidate input:focus-visible { outline: 2px solid #0e655e; outline-offset: 2px; }
+.candidate .candidate-path { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.candidate:has(input:checked) { background: #edf6f3; }

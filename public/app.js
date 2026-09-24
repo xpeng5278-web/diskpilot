@@ -7,6 +7,33 @@ let pickingFolder = false;
 let statusOverride = null;
 let busy = false;
 let submitting = false;
+let selectedPaths = new Set();
+const scanKey = scan => JSON.stringify([scan.root, scan.scannedAt]);
+const selectionKey = scan => `diskpilot.review:${scanKey(scan)}`;
+const knownSize = item => Number.isFinite(item.bytes) && item.bytes >= 0;
+
+function reviewItems() {
+  return [...new Map(result.plans.flatMap(plan => plan.candidates).map(item => [item.path, item])).values()];
+}
+
+function restoreSelection() {
+  selectedPaths = new Set();
+  try {
+    const saved = JSON.parse(localStorage.getItem(selectionKey(result)) || '[]');
+    if (Array.isArray(saved)) {
+      const candidates = new Set(reviewItems().map(item => item.path));
+      selectedPaths = new Set(saved.filter(path => candidates.has(path)));
+    }
+  } catch { /* Storage may be unavailable; the checklist still works in memory. */ }
+}
+
+function renderSelectionSummary() {
+  const items = reviewItems().filter(item => selectedPaths.has(item.path));
+  const total = items.reduce((sum, item) => sum + (knownSize(item) ? item.bytes : 0), 0);
+  const unknown = items.filter(item => !knownSize(item)).length;
+  $('#review-summary').textContent = `全部方案已勾选复核 ${items.length} 项 · 已知大小合计约 ${bytes(total)}${unknown ? `（另有 ${unknown} 项大小未知）` : ''}。路径可能嵌套，合计不代表可释放空间；仍须你自行核对和处理，应用不会删除或迁移。`;
+}
+
 
 function updateControls() {
   const locked = busy || submitting || pickingFolder;
@@ -58,12 +85,29 @@ function renderPlan() {
   const warning = node('p', 'plan-warning', `这是候选空间上限，实际可释放量需逐项确认。文件夹可能嵌套，请勿累加；所有操作由你自行决定。${capacityNote}`);
   host.append(summary, warning);
   if (!plan.candidates.length) host.append(node('p', 'empty-inline', '当前方案没有可列出的候选文件夹；可查看文件明细或切换方案，无需为了释放空间而强行清理。'));
-  for (const item of plan.candidates.slice(0, 8)) {
-    const row = node('div', 'candidate');
-    row.append(node('span', 'candidate-path', item.path), node('strong', '', bytes(item.bytes)));
+  const selectionSummary = node('p', 'review-summary');
+  selectionSummary.id = 'review-summary';
+  selectionSummary.setAttribute('role', 'status');
+  host.append(selectionSummary, node('p', 'hint', '勾选仅标记待你自行核对的路径；跨方案保留，导出报告会包含勾选项。'));
+  const list = node('div', 'candidate-list');
+  host.append(list);
+  for (const item of plan.candidates) {
+    const row = node('label', 'candidate');
+    const checkbox = node('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = selectedPaths.has(item.path);
+    checkbox.setAttribute('aria-label', `待复核：${item.path}`);
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) selectedPaths.add(item.path);
+      else selectedPaths.delete(item.path);
+      try { localStorage.setItem(selectionKey(result), JSON.stringify([...selectedPaths])); } catch { /* Memory fallback. */ }
+      renderSelectionSummary();
+    });
+    row.append(checkbox, node('span', 'candidate-path', item.path), node('strong', '', knownSize(item) ? bytes(item.bytes) : '大小未知'));
     row.title = item.path;
-    host.append(row);
+    list.append(row);
   }
+  renderSelectionSummary();
   document.querySelectorAll('[data-plan]').forEach(button => { button.classList.toggle('active', button.dataset.plan === currentPlan); button.setAttribute('aria-pressed', String(button.dataset.plan === currentPlan)); });
 }
 
@@ -117,7 +161,7 @@ async function state() {
   else if (data.error) setStatus(data.error, 'error');
   else if (data.result) {
     setStatus(`${data.result.demo ? '示例报告已加载（非本机扫描）' : '分析完成'} · ${new Date(data.result.scannedAt).toLocaleString()}`, 'done');
-    if (result?.scannedAt !== data.result.scannedAt) { result = data.result; render(); }
+    if (!result || scanKey(result) !== scanKey(data.result)) { result = data.result; restoreSelection(); render(); }
   }
 }
 
@@ -168,7 +212,28 @@ $('#browse').addEventListener('click', async () => {
 });
 $('#scan-path').addEventListener('keydown', event => { if (event.key === 'Enter') $('#scan').click(); });
 $('#scan-path').addEventListener('input', updateControls);
-$('#download').addEventListener('click', () => { window.location.href = '/api/report'; });
+$('#download').addEventListener('click', async () => {
+  if (!result) return;
+  $('#download').disabled = true;
+  try {
+    const response = await fetch('/api/report', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ root: result.root, scannedAt: result.scannedAt, selections: [...selectedPaths] })
+    });
+    if (!response.ok) throw new Error((await response.json()).error || '导出失败');
+    const url = URL.createObjectURL(await response.blob());
+    const link = node('a');
+    link.href = url;
+    link.download = 'diskpilot-report.md';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    statusOverride = { message: error.message, kind: 'error' };
+    setStatus(error.message, 'error');
+  } finally { $('#download').disabled = !result; }
+});
 document.querySelectorAll('[data-plan]').forEach(button => button.addEventListener('click', () => { currentPlan = button.dataset.plan; renderPlan(); }));
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => { currentView = button.dataset.view; renderItems(); }));
 function refreshState() { state().catch(() => setStatus('无法连接本机服务，请确认 npm start 正在运行。', 'error')); }
