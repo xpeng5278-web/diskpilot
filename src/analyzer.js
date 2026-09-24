@@ -205,7 +205,7 @@ function formatBytes(bytes) {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
-function markdownReport(result) {
+function markdownReport(result, selections = []) {
   const lines = [
     '# DiskPilot 空间诊断报告', '',
     `- 来源：${result.source}`,
@@ -221,6 +221,18 @@ function markdownReport(result) {
   for (const plan of result.plans) {
     lines.push(`### ${plan.name}`, '', `${plan.detail}。候选空间上限约 ${formatBytes(plan.candidateBytes)}；实际释放量需在执行前核实。`, '');
     for (const item of plan.candidates.slice(0, 20)) lines.push(`- ${formatBytes(item.bytes)} · \`${item.path}\``);
+    lines.push('');
+  }
+  const selected = new Set(Array.isArray(selections) ? selections.filter(item => typeof item === 'string') : []);
+  const candidates = new Map(result.plans.flatMap(plan => plan.candidates).map(item => [item.path, item]));
+  const reviewed = [...candidates.values()].filter(item => selected.has(item.path));
+  if (reviewed.length) {
+    lines.push('## 已勾选待复核', '', '勾选仅表示待你自行核对，不表示已处理或授权执行。仅本机、不上云、不自动删除或迁移。路径可能嵌套，大小不代表可释放空间。', '');
+    for (const item of reviewed) {
+      const size = Number.isFinite(item.bytes) && item.bytes >= 0 ? formatBytes(item.bytes) : '大小未知';
+      const safePath = item.path.replace(/[&<>]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[char])).replace(/[\r\n]/g, ' ');
+      lines.push(`- [x] ${size} · <code>${safePath}</code>`);
+    }
     lines.push('');
   }
   lines.push('## 最大文件夹', '', ...result.topFolders.slice(0, 40).map(item => `- ${formatBytes(item.bytes)} · \`${item.path}\``), '', '## 最大文件', '', ...result.topFiles.slice(0, 40).map(item => `- ${formatBytes(item.bytes)} · \`${item.path}\``), '', '扫描结果仅提供建议；系统目录和应用数据应使用官方卸载或迁移方式处理。');

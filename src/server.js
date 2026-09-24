@@ -44,10 +44,17 @@ async function handler(request, response) {
   if (request.method === 'POST' && origin !== `http://${host}`) return json(response, 403, { error: '只接受本机页面的请求' });
   try {
     if (request.method === 'GET' && url.pathname === '/api/state') return json(response, 200, state);
-    if (request.method === 'GET' && url.pathname === '/api/report') {
+    if (['GET', 'POST'].includes(request.method) && url.pathname === '/api/report') {
       if (!state.result) return json(response, 404, { error: '还没有报告' });
+      let selections = [];
+      if (request.method === 'POST') {
+        const input = await body(request);
+        if (!input || !Array.isArray(input.selections) || !input.selections.every(item => typeof item === 'string')) return json(response, 400, { error: '复核路径格式无效' });
+        if (!state.result || input.root !== state.result.root || input.scannedAt !== state.result.scannedAt) return json(response, 409, { error: '扫描结果已更新，请刷新后重新导出' });
+        selections = input.selections;
+      }
       response.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Content-Disposition': 'attachment; filename="diskpilot-report.md"', 'Cache-Control': 'no-store' });
-      return response.end(markdownReport(state.result));
+      return response.end(markdownReport(state.result, selections));
     }
     if (request.method === 'POST' && url.pathname === '/api/demo') {
       if (state.busy) return json(response, 409, { error: '已有分析正在运行' });
