@@ -13,29 +13,31 @@
   </header>
   <main>
     <section class="workspace">
-      <div class="section-heading"><div><p class="eyebrow">工作台</p><h1>查看空间去向</h1></div><p class="subtitle">按用途查看占用，再选择适合的处理方案。</p></div>
-      <p class="privacy">仅本机、不上云、不上传扫描数据。只提供建议，绝不自动删除或迁移文件。</p>
-      <div class="demo-row"><button id="demo" class="button primary">加载示例报告</button><span>无需 Windows 或 WizTree，立即体验分类、复核清单和报告导出。</span></div>
+      <div class="intro-hero">
+        <div><p class="eyebrow">给磁盘腾点空间</p><h1>先看清占用，再决定怎么整理</h1><p class="subtitle">从示例开始，看看分类、复核清单和报告。</p><p class="privacy">仅本机分析 · 不上传数据 · <strong>仅建议，不删除或迁移文件</strong></p></div>
+        <div class="demo-row"><button id="demo" class="button primary">加载示例报告</button><span>无需安装 · 随时体验</span></div>
+      </div>
       <div class="source-grid">
         <div class="source-block">
-          <div class="source-title"><span class="source-icon amber">⌕</span><div><h2>WizTree 扫描</h2><p>选择文件夹或输入路径</p></div></div>
-          <div class="scan-row"><input id="scan-path" type="text" placeholder="C:\Users\..." aria-label="扫描路径" aria-describedby="scan-help" spellcheck="false"><button id="browse" class="button secondary">选择文件夹</button><button id="scan" class="button outline" disabled>扫描路径</button></div>
-          <p class="hint scan-help" id="scan-help">真实扫描：粘贴完整文件夹路径（如 C:\Users\你的用户名\Downloads），无需加引号，再点击“扫描路径”。文件夹选择器和 WizTree 扫描面向 Windows，需安装 WizTree；Linux / 网页预览请先加载示例报告。</p>
+          <div class="source-title"><span class="source-icon amber">⌕</span><div><h2>Windows / WizTree 真实扫描</h2><p>已安装 WizTree？扫描自己的文件夹</p></div></div>
+          <p class="hint scan-help" id="scan-help">粘贴完整路径，无需加引号。选择文件夹需运行 Windows 桌面助手；真实扫描需安装 WizTree。</p>
+          <div class="scan-row"><input id="scan-path" type="text" placeholder="C:\Users\..." aria-label="扫描路径" aria-describedby="scan-help" spellcheck="false"><button id="browse" class="button secondary" aria-describedby="scan-help">选择文件夹</button><button id="scan" class="button outline" disabled>扫描路径</button></div>
         </div>
       </div>
       <div id="status" class="status" role="status"><span class="status-indicator"></span><span>先加载示例报告，或输入 Windows 扫描路径</span></div>
     </section>
 
-    <section id="empty" class="panel empty-state"><h2>先看看，空间都用在哪里了</h2><p>加载示例或完成扫描后，这里会显示用途分类、三级处理建议和占用最大的路径。你可以先核实文件用途与备份，再自行决定如何处理。</p></section>
+    <section id="empty" class="panel empty-state"><h2>你的整理路线</h2><p>① 看空间去向　 →　 ② 勾选待复核路径　 →　 ③ 导出报告，按需整理</p></section>
 
     <section id="results" class="results hidden">
+      <p class="privacy results-promise">仅本机 · 不上云 · <strong>仅建议、不删除</strong> · 不自动迁移</p>
       <div class="section-heading compact"><div><p class="eyebrow">分析结果</p><h2>空间总览</h2></div><div id="meta" class="meta"></div></div>
-      <p id="demo-notice" class="privacy hidden">当前为示例数据，路径与容量不代表你的电脑；导出的报告也会标注示例来源。</p>
+      <p id="demo-notice" class="privacy hidden">示例报告 · 非本机数据，导出时也会标注。</p>
       <div id="volumes" class="volumes"></div>
-      <div class="metrics"><div><span>文件占用估计</span><strong id="total">—</strong></div><div><span>文件数</span><strong id="files">—</strong></div><div><span>文件夹数</span><strong id="folders">—</strong></div><div><span>跳过项</span><strong id="skipped">—</strong></div></div>
+      <div class="metrics"><div class="hero-metric"><span>文件占用估计</span><strong id="total">—</strong></div><div><span>文件数</span><strong id="files">—</strong></div><div><span>文件夹数</span><strong id="folders">—</strong></div><div><span>未计入项</span><strong id="skipped">—</strong></div></div>
       <div class="content-grid">
         <div class="panel"><div class="panel-heading"><h3>按用途分类</h3><span>占用估计</span></div><div id="categories"></div></div>
-        <div class="panel"><div class="panel-heading"><h3>处理方案 · 复核清单</h3><span>候选空间上限</span></div><div class="plan-tabs" aria-label="处理方案"><button class="active" data-plan="light">轻度 · 缓存</button><button data-plan="medium">中度 · 加入构建产物</button><button data-plan="heavy">重度 · 审查个人文件</button></div><div id="plan"></div></div>
+        <div class="panel"><div class="panel-heading"><h3>整理建议 · 待你复核</h3><span>先核对，再处理</span></div><div class="plan-tabs" aria-label="处理方案"><button class="active" data-plan="light">轻度 · 缓存</button><button data-plan="medium">中度 · 构建产物</button><button data-plan="heavy">重度 · 个人文件</button></div><div id="plan"></div></div>
       </div>
       <div class="panel details"><div class="panel-heading"><h3>最大路径</h3><div class="view-tabs"><button class="active" data-view="folders">文件夹</button><button data-view="files">文件</button></div></div><div class="table-wrap"><table><thead><tr><th>路径</th><th>类别</th><th class="number">大小</th></tr></thead><tbody id="items"></tbody></table></div></div>
     </section>

@@ -1,5 +1,6 @@
 const $ = selector => document.querySelector(selector);
 const bytes = size => size >= 1024 ** 3 ? `${(size / 1024 ** 3).toFixed(2)} GB` : size >= 1024 ** 2 ? `${(size / 1024 ** 2).toFixed(1)} MB` : `${(size / 1024).toFixed(1)} KB`;
+const isWindows = /Windows/i.test(navigator.userAgent);
 let result = null;
 let currentPlan = 'light';
 let currentView = 'folders';
@@ -27,18 +28,32 @@ function restoreSelection() {
   } catch { /* Storage may be unavailable; the checklist still works in memory. */ }
 }
 
+function chooseDefaultPlan() {
+  const current = result.plans.find(plan => plan.id === currentPlan);
+  if (current?.candidates.length) return;
+  const withItems = result.plans.find(plan => plan.candidates.length);
+  if (withItems) currentPlan = withItems.id;
+}
+
 function renderSelectionSummary() {
+  const plan = result.plans.find(item => item.id === currentPlan);
   const items = reviewItems().filter(item => selectedPaths.has(item.path));
   const total = items.reduce((sum, item) => sum + (knownSize(item) ? item.bytes : 0), 0);
   const unknown = items.filter(item => !knownSize(item)).length;
-  $('#review-summary').textContent = `全部方案已勾选复核 ${items.length} 项 · 已知大小合计约 ${bytes(total)}${unknown ? `（另有 ${unknown} 项大小未知）` : ''}。路径可能嵌套，合计不代表可释放空间；仍须你自行核对和处理，应用不会删除或迁移。`;
+  if (!plan.candidates.length) {
+    $('#review-summary').textContent = '这一档暂无可勾建议';
+    return;
+  }
+  $('#review-summary').textContent = items.length
+    ? `已选 ${items.length} 项待核对 · 约 ${bytes(total)}${unknown ? ` · ${unknown} 项大小未知` : ''}（跨方案保留；路径重叠时不代表可释放空间）`
+    : '还没勾选 · 勾选下方路径，加入导出报告。';
 }
-
 
 function updateControls() {
   const locked = busy || submitting || pickingFolder;
   $('#scan').disabled = locked || !$('#scan-path').value.trim();
-  $('#browse').disabled = locked;
+  $('#browse').disabled = locked || !isWindows;
+  $('#browse').setAttribute('aria-disabled', String($('#browse').disabled));
   $('#demo').disabled = locked;
 }
 
@@ -79,16 +94,26 @@ function renderPlan() {
   const host = $('#plan');
   host.replaceChildren();
   const summary = node('div', 'plan-summary');
-  summary.append(node('strong', '', bytes(plan.candidateBytes)), node('p', '', plan.detail));
+  const amount = node('div', 'plan-amount');
+  const emptyPlan = !plan.candidates.length;
+  if (emptyPlan) {
+    amount.classList.add('plan-empty');
+    amount.append(node('strong', '', '这一档暂无可勾建议'), node('p', 'hint', '可切换其他档位，或先看左侧分类与下方明细。'));
+  } else {
+    amount.append(node('span', 'hint', '可优先查看的空间'), node('strong', '', bytes(plan.candidateBytes)));
+  }
+  summary.append(amount);
+  const detail = node('details', 'plan-detail');
+  detail.append(node('summary', '', '这些建议包含什么？'), node('p', '', plan.detail));
   const target = result.volumes?.find(item => item.drive === 'D:');
   const capacityNote = currentPlan === 'heavy' && target && plan.candidateBytes > target.freeBytes * 0.9 ? ' 若全部迁移到 D 盘，现有剩余空间可能不足。' : '';
-  const warning = node('p', 'plan-warning', `这是候选空间上限，实际可释放量需逐项确认。文件夹可能嵌套，请勿累加；所有操作由你自行决定。${capacityNote}`);
-  host.append(summary, warning);
-  if (!plan.candidates.length) host.append(node('p', 'empty-inline', '当前方案没有可列出的候选文件夹；可查看文件明细或切换方案，无需为了释放空间而强行清理。'));
+  const warning = node('p', 'plan-warning', `实际能腾出多少，需逐项核对；嵌套文件夹不要重复计算。${capacityNote}`);
+  host.append(summary, detail);
+  if (!emptyPlan) host.append(warning);
   const selectionSummary = node('p', 'review-summary');
   selectionSummary.id = 'review-summary';
   selectionSummary.setAttribute('role', 'status');
-  host.append(selectionSummary, node('p', 'hint', '勾选仅标记待你自行核对的路径；跨方案保留，导出报告会包含勾选项。'));
+  host.append(selectionSummary);
   const list = node('div', 'candidate-list');
   host.append(list);
   for (const item of plan.candidates) {
@@ -96,7 +121,7 @@ function renderPlan() {
     const checkbox = node('input');
     checkbox.type = 'checkbox';
     checkbox.checked = selectedPaths.has(item.path);
-    checkbox.setAttribute('aria-label', `待复核：${item.path}`);
+    checkbox.setAttribute('aria-label', `待核对：${item.path}`);
     checkbox.addEventListener('change', () => {
       if (checkbox.checked) selectedPaths.add(item.path);
       else selectedPaths.delete(item.path);
@@ -108,7 +133,10 @@ function renderPlan() {
     list.append(row);
   }
   renderSelectionSummary();
-  document.querySelectorAll('[data-plan]').forEach(button => { button.classList.toggle('active', button.dataset.plan === currentPlan); button.setAttribute('aria-pressed', String(button.dataset.plan === currentPlan)); });
+  document.querySelectorAll('[data-plan]').forEach(button => {
+    button.classList.toggle('active', button.dataset.plan === currentPlan);
+    button.setAttribute('aria-pressed', String(button.dataset.plan === currentPlan));
+  });
 }
 
 function renderItems() {
@@ -133,6 +161,7 @@ function renderItems() {
 
 function render() {
   if (!result) return;
+  chooseDefaultPlan();
   $('#results').classList.remove('hidden');
   $('#empty').classList.add('hidden');
   $('#demo-notice').classList.toggle('hidden', !result.demo);
@@ -189,6 +218,7 @@ async function request(url, options) {
 $('#demo').addEventListener('click', () => request('/api/demo', { method: 'POST' }));
 $('#scan').addEventListener('click', () => request('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: $('#scan-path').value }) }));
 $('#browse').addEventListener('click', async () => {
+  if (!isWindows || busy || submitting || pickingFolder) return;
   pickingFolder = true;
   statusOverride = null;
   updateControls();
@@ -237,5 +267,9 @@ $('#download').addEventListener('click', async () => {
 document.querySelectorAll('[data-plan]').forEach(button => button.addEventListener('click', () => { currentPlan = button.dataset.plan; renderPlan(); }));
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => { currentView = button.dataset.view; renderItems(); }));
 function refreshState() { state().catch(() => setStatus('无法连接本机服务，请确认 npm start 正在运行。', 'error')); }
+if (!isWindows) {
+  $('#scan-help').textContent = '文件夹选择器仅支持 Windows 桌面助手；请先加载示例报告，或粘贴完整路径。真实扫描需 Windows 和 WizTree。';
+}
+updateControls();
 refreshState();
 setInterval(refreshState, 1500);

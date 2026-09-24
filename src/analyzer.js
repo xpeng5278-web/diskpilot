@@ -219,7 +219,7 @@ function markdownReport(result, selections = []) {
     '## 分级方案', ''
   ];
   for (const plan of result.plans) {
-    lines.push(`### ${plan.name}`, '', `${plan.detail}。候选空间上限约 ${formatBytes(plan.candidateBytes)}；实际释放量需在执行前核实。`, '');
+    lines.push(`### ${plan.name}`, '', `${plan.detail}。可优先查看的空间约 ${formatBytes(plan.candidateBytes)}；实际释放量需在执行前核实。`, '');
     for (const item of plan.candidates.slice(0, 20)) lines.push(`- ${formatBytes(item.bytes)} · \`${item.path}\``);
     lines.push('');
   }
