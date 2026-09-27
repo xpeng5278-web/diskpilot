@@ -1,5 +1,5 @@
 const $ = selector => document.querySelector(selector);
-const bytes = size => size >= 1024 ** 3 ? `${(size / 1024 ** 3).toFixed(2)} GB` : size >= 1024 ** 2 ? `${(size / 1024 ** 2).toFixed(1)} MB` : `${(size / 1024).toFixed(1)} KB`;
+const bytes = size => size >= 1024 ** 3 ? `${(size / 1024 ** 3).toFixed(2)} GB` : size >= 1024 ** 2 ? `${(size / 1024 ** 2).toFixed(1)} MB` : size >= 1024 ? `${(size / 1024).toFixed(1)} KB` : `${size} B`;
 const isWindows = /Windows/i.test(navigator.userAgent);
 let result = null;
 let currentPlan = 'light';
@@ -8,6 +8,7 @@ let pickingFolder = false;
 let statusOverride = null;
 let busy = false;
 let submitting = false;
+let fixedDrives = [];
 let selectedPaths = new Set();
 const scanKey = scan => JSON.stringify([scan.root, scan.scannedAt]);
 const selectionKey = scan => `diskpilot.review:${scanKey(scan)}`;
@@ -51,10 +52,56 @@ function renderSelectionSummary() {
 
 function updateControls() {
   const locked = busy || submitting || pickingFolder;
+  $('#scan-all').disabled = locked || !isWindows || !fixedDrives.length;
   $('#scan').disabled = locked || !$('#scan-path').value.trim();
   $('#browse').disabled = locked || !isWindows;
   $('#browse').setAttribute('aria-disabled', String($('#browse').disabled));
   $('#demo').disabled = locked;
+}
+
+function renderProgress(progress) {
+  const host = $('#scan-progress');
+  host.classList.toggle('hidden', !progress);
+  if (!progress) return;
+  const bar = $('#progress-bar');
+  $('#cancel-scan').disabled = progress.phase === 'cancelling';
+  const step = progress.total ? `${progress.completed + 1} / ${progress.total} 个磁盘` : '';
+  $('#progress-count').textContent = step;
+  if (progress.phase === 'cancelling') {
+    $('#progress-title').textContent = '正在取消扫描';
+    $('#progress-detail').textContent = '正在停止 WizTree 并清理临时结果';
+    bar.removeAttribute('value');
+  } else if (progress.phase === 'discovering') {
+    $('#progress-title').textContent = '正在识别本机磁盘';
+    $('#progress-detail').textContent = '正在读取 Windows 的固定磁盘列表';
+    bar.removeAttribute('value');
+  } else if (progress.phase === 'analyzing') {
+    const percent = progress.totalBytes ? Math.min(100, Math.round(progress.processedBytes / progress.totalBytes * 100)) : 0;
+    $('#progress-title').textContent = `正在分析 ${progress.current}`;
+    $('#progress-detail').textContent = `已读取扫描结果 ${percent}%`;
+    bar.value = percent;
+  } else {
+    $('#progress-title').textContent = `正在扫描 ${progress.current}`;
+    $('#progress-detail').textContent = 'WizTree 正在扫描；此阶段无法提供准确百分比';
+    bar.removeAttribute('value');
+  }
+}
+
+async function loadDrives() {
+  if (!isWindows) {
+    $('#drives-hint').textContent = '本机固定磁盘扫描仅支持 Windows';
+    return;
+  }
+  try {
+    const response = await fetch('/api/drives');
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || '无法识别本机磁盘');
+    fixedDrives = data.drives;
+    $('#drives-hint').textContent = `将扫描 ${fixedDrives.join('、')}（${fixedDrives.length} 个固定磁盘）`;
+  } catch (error) {
+    $('#drives-hint').textContent = `${error.message}；仍可扫描指定路径`;
+  }
+  updateControls();
 }
 
 function node(tag, className, value) {
@@ -167,6 +214,7 @@ function render() {
   $('#demo-notice').classList.toggle('hidden', !result.demo);
   $('#download').disabled = false;
   $('#total').textContent = bytes(result.allocatedBytes);
+  $('#logical-total').textContent = `文件大小总计 ${bytes(result.bytes)}`;
   $('#files').textContent = result.fileCount.toLocaleString();
   $('#folders').textContent = result.folderCount.toLocaleString();
   $('#skipped').textContent = result.skipped.toLocaleString();
@@ -183,15 +231,24 @@ async function state() {
   const response = await fetch('/api/state');
   const data = await response.json();
   busy = data.busy;
+  if (!data.busy && !data.result && result) {
+    result = null;
+    selectedPaths.clear();
+    $('#results').classList.add('hidden');
+    $('#empty').classList.remove('hidden');
+    $('#download').disabled = true;
+    statusOverride = { message: '本机服务已重启，先前报告已失效，请重新扫描', kind: 'error' };
+  }
   updateControls();
   if (pickingFolder) return;
+  renderProgress(data.busy ? data.progress : null);
   if (data.busy) setStatus(data.status, 'working');
   else if (statusOverride) setStatus(statusOverride.message, statusOverride.kind);
   else if (data.error) setStatus(data.error, 'error');
   else if (data.result) {
     setStatus(`${data.result.demo ? '示例报告已加载（非本机扫描）' : '分析完成'} · ${new Date(data.result.scannedAt).toLocaleString()}`, 'done');
     if (!result || scanKey(result) !== scanKey(data.result)) { result = data.result; restoreSelection(); render(); }
-  }
+  } else setStatus(data.status);
 }
 
 async function request(url, options) {
@@ -200,7 +257,7 @@ async function request(url, options) {
   updateControls();
   try {
     statusOverride = null;
-    setStatus('正在分析…', 'working');
+    setStatus('正在启动…', 'working');
     result = null;
     $('#download').disabled = true;
     $('#empty').classList.remove('hidden');
@@ -216,6 +273,18 @@ async function request(url, options) {
 }
 
 $('#demo').addEventListener('click', () => request('/api/demo', { method: 'POST' }));
+$('#scan-all').addEventListener('click', () => request('/api/scan-all', { method: 'POST' }));
+$('#cancel-scan').addEventListener('click', async () => {
+  $('#cancel-scan').disabled = true;
+  try {
+    const response = await fetch('/api/cancel', { method: 'POST' });
+    if (!response.ok) throw new Error((await response.json()).error || '无法取消扫描');
+    setStatus('正在取消扫描…', 'working');
+  } catch (error) {
+    statusOverride = { message: error.message, kind: 'error' };
+    setStatus(error.message, 'error');
+  } finally { $('#cancel-scan').disabled = false; }
+});
 $('#scan').addEventListener('click', () => request('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: $('#scan-path').value }) }));
 $('#browse').addEventListener('click', async () => {
   if (!isWindows || busy || submitting || pickingFolder) return;
@@ -271,5 +340,6 @@ if (!isWindows) {
   $('#scan-help').textContent = '文件夹选择器仅支持 Windows 桌面助手；请先加载示例报告，或粘贴完整路径。真实扫描需 Windows 和 WizTree。';
 }
 updateControls();
+loadDrives();
 refreshState();
 setInterval(refreshState, 1500);

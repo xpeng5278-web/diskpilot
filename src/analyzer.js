@@ -115,19 +115,24 @@ function volumeInfo(drive) {
   } catch { return null; }
 }
 
-async function analyzeWizTreeCsv(filePath, scanRoot, { demo = false } = {}) {
+async function analyzeWizTreeCsv(filePath, scanRoot, { demo = false, onProgress, signal } = {}) {
+  signal?.throwIfAborted();
   const accumulator = createAccumulator(demo ? '示例数据（非本机扫描）' : 'WizTree 本机扫描', scanRoot || filePath);
+  const totalBytes = (await fs.promises.stat(filePath)).size;
   const handle = await fs.promises.open(filePath, 'r');
   const bom = Buffer.alloc(3);
   await handle.read(bom, 0, 3, 0);
   await handle.close();
   const encoding = bom[0] === 0xff && bom[1] === 0xfe ? 'utf16le' : 'utf8';
-  const stream = fs.createReadStream(filePath, { encoding });
+  const stream = fs.createReadStream(filePath, { encoding, signal });
   const reader = readline.createInterface({ input: stream, crlfDelay: Infinity });
   let columns;
   let scannedDrive;
   let preambleLines = 0;
+  let rows = 0;
   for await (const raw of reader) {
+    signal?.throwIfAborted();
+    if (++rows % 1000 === 0) onProgress?.({ processedBytes: Math.min(stream.bytesRead, totalBytes), totalBytes });
     const line = raw.replace(/^\ufeff/, '');
     if (!line.trim()) continue;
     const values = csvFields(line);
@@ -154,11 +159,38 @@ async function analyzeWizTreeCsv(filePath, scanRoot, { demo = false } = {}) {
     accumulator.add({ path: name, directory, bytes: size, allocated: hardlink ? 0 : allocated });
   }
   if (!columns) throw new Error('未找到 WizTree CSV 表头');
+  signal?.throwIfAborted();
+  onProgress?.({ processedBytes: totalBytes, totalBytes });
   const result = accumulator.result();
   result.root = scanRoot || scannedDrive || filePath;
   result.demo = demo;
   result.volumes = demo ? [] : [volumeInfo(scannedDrive), volumeInfo('D:')].filter(Boolean).filter((item, index, all) => all.findIndex(other => other.drive === item.drive) === index);
   return result;
+}
+
+function mergeScanResults(results, drives) {
+  const categories = new Map();
+  for (const result of results) {
+    for (const row of result.categories) {
+      const current = categories.get(row.id);
+      categories.set(row.id, { ...row, bytes: row.bytes + (current?.bytes || 0) });
+    }
+  }
+  const categoryRows = [...categories.values()].sort((a, b) => b.bytes - a.bytes);
+  const topFiles = results.flatMap(result => result.topFiles).sort((a, b) => b.bytes - a.bytes).slice(0, MAX_ITEMS);
+  const topFolders = results.flatMap(result => result.topFolders).sort((a, b) => b.bytes - a.bytes).slice(0, MAX_ITEMS);
+  const volumes = [...new Map(results.flatMap(result => result.volumes || []).map(volume => [volume.drive, volume])).values()].filter(volume => drives.includes(volume.drive));
+  return {
+    source: 'WizTree 本机固定磁盘扫描', root: drives.map(drive => `${drive}\\`).join('、'),
+    scannedAt: new Date().toISOString(), demo: false, drives,
+    bytes: results.reduce((sum, result) => sum + result.bytes, 0),
+    allocatedBytes: results.reduce((sum, result) => sum + result.allocatedBytes, 0),
+    fileCount: results.reduce((sum, result) => sum + result.fileCount, 0),
+    folderCount: results.reduce((sum, result) => sum + result.folderCount, 0),
+    skipped: results.reduce((sum, result) => sum + result.skipped, 0),
+    categories: categoryRows, topFiles, topFolders, volumes,
+    plans: buildPlans(categoryRows, topFolders)
+  };
 }
 
 async function scanDirectory(root, progress) {
@@ -202,7 +234,8 @@ async function scanDirectory(root, progress) {
 function formatBytes(bytes) {
   if (bytes >= GB) return `${(bytes / GB).toFixed(2)} GB`;
   if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
 }
 
 function markdownReport(result, selections = []) {
@@ -212,9 +245,9 @@ function markdownReport(result, selections = []) {
     `- 扫描位置：\`${result.root}\``,
     `- 时间：${result.scannedAt}`,
     `- 文件：${result.fileCount.toLocaleString()}，文件夹：${result.folderCount.toLocaleString()}，无法读取或忽略：${result.skipped.toLocaleString()}`,
-    `- 文件总大小：${formatBytes(result.bytes)}；占用估计：${formatBytes(result.allocatedBytes)}`, '',
+    `- 文件大小总计：${formatBytes(result.bytes)}；磁盘分配量（WizTree）：${formatBytes(result.allocatedBytes)}`, '',
     ...(result.volumes?.length ? ['## 磁盘空间', '', ...result.volumes.map(item => `${item.drive} 总计 ${formatBytes(item.totalBytes)}，剩余 ${formatBytes(item.freeBytes)}`), ''] : []),
-    '## 分类', '', '| 类别 | 占用 | 建议 |', '| --- | ---: | --- |',
+    '## 分类', '', '| 类别 | 磁盘分配量 | 建议 |', '| --- | ---: | --- |',
     ...result.categories.map(row => `| ${row.label} | ${formatBytes(row.bytes)} | ${row.action} |`), '',
     '## 分级方案', ''
   ];
@@ -239,4 +272,4 @@ function markdownReport(result, selections = []) {
   return lines.join('\n');
 }
 
-module.exports = { analyzeWizTreeCsv, scanDirectory, csvFields, classify, formatBytes, markdownReport };
+module.exports = { analyzeWizTreeCsv, mergeScanResults, scanDirectory, csvFields, classify, formatBytes, markdownReport };

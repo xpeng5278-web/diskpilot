@@ -2,12 +2,14 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { markdownReport, analyzeWizTreeCsv } = require('./analyzer');
-const { scanWithWizTree } = require('./wiztree');
+const { scanWithWizTree, scanAllFixedDrives } = require('./wiztree');
+const { listFixedDrives } = require('./drives');
 const { chooseFolder } = require('./folder-picker');
 
 const publicDir = path.join(__dirname, '..', 'public');
-const state = { busy: false, status: '等待扫描', result: null, error: null };
+const state = { busy: false, status: '等待扫描', progress: null, result: null, error: null };
 let choosingFolder = false;
+let activeScan = null;
 
 function json(response, status, data) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -23,17 +25,28 @@ async function body(request, limit = 64 * 1024) {
   return JSON.parse(text);
 }
 
-function begin(task) {
+function begin(task, { cancellable = false } = {}) {
+  const controller = cancellable ? new AbortController() : null;
+  activeScan = controller;
   state.busy = true;
   state.error = null;
+  state.progress = null;
   state.result = null;
-  Promise.resolve().then(task).then(result => {
+  const updateProgress = progress => {
+    state.progress = progress;
+    const drive = progress.current || '';
+    const step = progress.total ? `（${progress.completed + 1}/${progress.total}）` : '';
+    state.status = progress.phase === 'discovering' ? '正在识别本机固定磁盘'
+      : progress.phase === 'analyzing' ? `正在分析 ${drive} 的扫描结果${step}`
+        : `WizTree 正在扫描 ${drive}${step}`;
+  };
+  Promise.resolve().then(() => task(updateProgress, controller?.signal)).then(result => {
     state.result = result;
     state.status = result.demo ? '示例报告已加载（非本机扫描）' : '分析完成';
   }).catch(error => {
-    state.error = error.message;
-    state.status = '分析失败';
-  }).finally(() => { state.busy = false; });
+    if (error.name === 'AbortError') state.status = '扫描已取消';
+    else { state.error = error.message; state.status = '分析失败'; }
+  }).finally(() => { state.busy = false; state.progress = null; activeScan = null; });
 }
 
 async function handler(request, response) {
@@ -44,6 +57,7 @@ async function handler(request, response) {
   if (request.method === 'POST' && origin !== `http://${host}`) return json(response, 403, { error: '只接受本机页面的请求' });
   try {
     if (request.method === 'GET' && url.pathname === '/api/state') return json(response, 200, state);
+    if (request.method === 'GET' && url.pathname === '/api/drives') return json(response, 200, { drives: await listFixedDrives() });
     if (['GET', 'POST'].includes(request.method) && url.pathname === '/api/report') {
       if (!state.result) return json(response, 404, { error: '还没有报告' });
       let selections = [];
@@ -68,7 +82,19 @@ async function handler(request, response) {
       if (typeof input.path !== 'string' || !input.path.trim()) return json(response, 400, { error: '请输入要扫描的文件夹路径' });
       const target = input.path.trim();
       state.status = `WizTree 正在扫描 ${target}`;
-      begin(() => scanWithWizTree(target));
+      begin((update, signal) => scanWithWizTree(target, progress => update({ ...progress, completed: 0, total: 1 }), signal), { cancellable: true });
+      return json(response, 202, { accepted: true });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/scan-all') {
+      if (state.busy) return json(response, 409, { error: '已有扫描正在运行' });
+      begin((update, signal) => scanAllFixedDrives(update, signal), { cancellable: true });
+      return json(response, 202, { accepted: true });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/cancel') {
+      if (!state.busy || !activeScan) return json(response, 409, { error: '当前没有可取消的扫描' });
+      state.status = '正在取消扫描…';
+      state.progress = { ...state.progress, phase: 'cancelling' };
+      activeScan.abort();
       return json(response, 202, { accepted: true });
     }
     if (request.method === 'POST' && url.pathname === '/api/choose-folder') {
