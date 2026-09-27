@@ -1,6 +1,24 @@
 # DiskPilot
 
-本地运行的 Windows 磁盘空间诊断工具。桌面助手可将所选文件夹的绝对路径填入网页，再调用本机 WizTree 扫描，查看占用分类、最大的文件和文件夹，并导出中文 Markdown 报告。
+看懂 Windows 磁盘空间去了哪里，再决定如何整理。DiskPilot 借助本机 WizTree 扫描，将占用按用途分类，列出最大的文件和文件夹，并生成可导出的中文复核报告。扫描结果留在本机；项目目前只提供建议，不会删除或迁移文件。
+
+DiskPilot is a local-first Windows disk-space diagnosis tool powered by your own WizTree installation. It groups disk usage, highlights large paths, and exports a reviewable report. No scan data is uploaded; no files are deleted or moved.
+
+![DiskPilot 示例报告界面，使用内置模拟数据](docs/images/demo-dashboard.jpg)
+
+*截图来自内置示例报告，不是本机扫描。当前为开发预览版，尚无一键安装包。*
+
+## 快速试用
+
+在 Windows 上安装 Node.js 20 或更高版本及 WizTree，然后运行：
+
+```powershell
+git clone https://github.com/xpeng5278-web/diskpilot.git
+cd diskpilot
+npm run desktop
+```
+
+保持桌面助手窗口打开，访问终端显示的本机地址。可先点击“加载示例报告”查看界面；实际扫描需点击“扫描本机固定磁盘”或选择文件夹后点击“扫描此路径”。WizTree 需单独安装，本项目不包含其程序文件。详见下方“运行”和“隐私”。
 
 界面规范见 [DESIGN.md](DESIGN.md)。它参考了 Awesome DESIGN.md 中的 IBM 分析，但已按本地磁盘诊断工作台的用途重写，不使用 IBM 品牌元素。
 
@@ -49,4 +67,8 @@
 
 ## 参与
 
-欢迎提交真实的 WizTree CSV 样例（请先脱敏）、误分类案例和 Windows 应用迁移经验。见 CONTRIBUTING.md。
+欢迎提交误分类案例、启动或扫描问题，以及 Windows 应用迁移经验。请使用 [问题模板](.github/ISSUE_TEMPLATE/bug_report.md)，公开反馈前先对路径、用户名和报告脱敏；详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## 许可证
+
+项目代码采用 [MIT License](LICENSE)。WizTree 是独立软件，不包含在本项目中，使用和分发仍以其官方许可为准。

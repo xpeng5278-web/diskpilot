@@ -34,4 +34,4 @@ When asked to improve the product, prefer: `user` critique → `product` backlog
 - Folder picker is Windows-only; on Linux tests may fail that case — skip or guard, do not fake Windows APIs
 
 ## Git
-Private repo: `https://github.com/xpeng5278-web/diskpilot`. Prefer small commits with clear Chinese or English messages. Never force-push `main` without asking.
+Public repo: `https://github.com/xpeng5278-web/diskpilot`. Prefer small commits with clear Chinese or English messages. Never force-push `main` without asking. Keep author emails private when possible.
