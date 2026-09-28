@@ -7,6 +7,8 @@ const { listFixedDrives } = require('./drives');
 const { chooseFolder } = require('./folder-picker');
 
 const publicDir = path.join(__dirname, '..', 'public');
+// Fictional GB-scale sample report; shipped in the portable package as well.
+const demoCsv = path.join(__dirname, '..', 'samples', 'demo-report.csv');
 const state = { busy: false, status: '等待扫描', progress: null, result: null, error: null };
 let choosingFolder = false;
 let activeScan = null;
@@ -73,7 +75,7 @@ async function handler(request, response) {
     if (request.method === 'POST' && url.pathname === '/api/demo') {
       if (state.busy) return json(response, 409, { error: '已有分析正在运行' });
       state.status = '正在加载示例报告…';
-      begin(() => analyzeWizTreeCsv(path.join(__dirname, '..', 'test', 'fixtures', 'wiztree-sample.csv'), 'C:\\Users\\demo\\Downloads', { demo: true }));
+      begin(() => analyzeWizTreeCsv(demoCsv, 'C:\\', { demo: true }));
       return json(response, 202, { accepted: true });
     }
     if (request.method === 'POST' && url.pathname === '/api/scan') {

@@ -37,6 +37,8 @@ test('demo API accepts local requests and exports a labeled sample report', asyn
   assert.equal(state.busy, false);
   assert.equal(state.error, null);
   assert.equal(state.result.demo, true);
+  assert.equal(state.result.root, 'C:\\');
+  assert.ok(state.result.allocatedBytes > 100 * 1024 ** 3);
   assert.match(state.status, /示例/);
   const report = await fetch(`${base}/api/report`);
   assert.equal(report.status, 200);
@@ -54,4 +56,23 @@ test('demo API accepts local requests and exports a labeled sample report', asyn
   assert.equal((await exportReview(null)).status, 400);
   assert.equal(await (await fetch(`${base}/api/report`)).text(), plainReport);
   assert.deepEqual((await (await fetch(`${base}/api/state`)).json()).result, state.result);
+});
+
+test('realistic demo covers all categories and has increasing actionable plans', async () => {
+  const result = await analyzeWizTreeCsv(path.join(__dirname, '../samples/demo-report.csv'), 'C:\\', { demo: true });
+  assert.deepEqual(result.categories.map(row => row.id).sort(), ['appdata', 'build', 'cache', 'downloads', 'other', 'personal', 'system']);
+  assert.ok(result.allocatedBytes > 100 * 1024 ** 3);
+  assert.ok(result.allocatedBytes >= 150 * 1024 ** 3 && result.allocatedBytes <= 250 * 1024 ** 3);
+  assert.ok(result.fileCount + result.folderCount >= 80 && result.fileCount + result.folderCount <= 150);
+  for (const plan of result.plans) assert.ok(plan.candidates.length >= 2, plan.id);
+  const amounts = result.plans.map(plan => plan.candidateBytes);
+  assert.ok(amounts[0] < amounts[1] && amounts[1] < amounts[2]);
+  assert.equal(result.demo, true);
+  assert.deepEqual(result.volumes, []);
+  for (const folder of result.topFolders) {
+    const descendants = result.topFiles.filter(file => file.path.startsWith(folder.path));
+    assert.equal(folder.bytes, descendants.reduce((sum, file) => sum + file.bytes, 0), folder.path);
+    assert.equal(folder.allocated, descendants.reduce((sum, file) => sum + file.allocated, 0), folder.path);
+  }
+  assert.equal(result.topFolders.find(folder => folder.path === 'C:\\').allocated, result.allocatedBytes);
 });
