@@ -11,10 +11,20 @@ DiskPilot is a local-first Windows disk-space diagnosis tool powered by your own
 
 ![DiskPilot 演示：加载示例报告、查看分类、在重度方案中勾选待复核路径（内置示例数据）](docs/images/demo.gif)
 
-*演示使用内置示例数据（几 KB 的模拟路径），不是本机扫描。当前为开发预览版，尚无一键安装包。*
-*Demo uses the built-in sample report, not a real scan.*
+*演示报告使用 GB 级的完全虚构数据与路径，不是本机扫描。当前为开发预览版，首个便携版正在测试中。*
+*Demo uses a GB-scale fictional sample dataset, not a real scan.*
 
 ## 快速试用
+
+### 方式 1：下载便携版（推荐）
+
+前往 [Releases](https://github.com/xpeng5278-web/diskpilot/releases)，下载 `DiskPilot-<版本>-win-x64.zip`，解压到任意目录（支持空格和中文路径），双击 `启动 DiskPilot.cmd`（或 `Start-DiskPilot.cmd`）。便携版内置官方 Node.js 运行时，无需另装 Node.js；桌面助手需要 .NET Framework 4（Windows 10/11 已内置）。保持启动窗口打开，访问窗口显示的本机地址。
+
+首个便携版正在测试，Releases 中可能暂时还没有下载文件。
+
+WizTree 必须单独安装：在终端运行 `winget install AntibodySoftware.WizTree`，或从 [WizTree 官网](https://diskanalyzer.com/download) 下载，安装后重启 DiskPilot。压缩包不包含 WizTree；“加载示例报告”无需 WizTree 即可使用。
+
+### 方式 2：从源码运行
 
 在 Windows 上安装 Node.js 20 或更高版本及 WizTree，然后运行：
 
@@ -56,6 +66,10 @@ npm run desktop
 如果 WizTree 安装在非标准位置，设置 WIZTREE_PATH 环境变量指向 WizTree64.exe。本机开发目录中的 Tools/WizTree 也会自动识别。
 
 运行测试：npm test。
+
+### 打包
+
+运行 `npm run package:win` 可构建 Windows 便携版 zip，支持从任意操作系统打包。压缩包内置官方 Node.js 运行时，不包含 WizTree。
 
 ## 现阶段边界
 

@@ -7,7 +7,8 @@
     "start": "node src/server.js",
     "desktop": "node scripts/desktop.js",
     "build:desktop": "node scripts/build-bridge.js",
-    "test": "node --test"
+    "test": "node --test",
+    "package:win": "node scripts/package-win.js"
   },
   "engines": {
     "node": ">=20"
