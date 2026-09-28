@@ -1,5 +1,10 @@
 # DiskPilot
 
+> [!IMPORTANT]
+> **推荐使用轻量版 [DiskPilot Lite](https://github.com/xpeng5278-web/diskpilot-lite)。** 它只有约 23 KB，双击一次就能扫描 C 盘并生成清理建议报告，不需要 Node。下载地址：<https://github.com/xpeng5278-web/diskpilot-lite/releases/latest>
+>
+> We recommend the lightweight [DiskPilot Lite](https://github.com/xpeng5278-web/diskpilot-lite) (about 23 KB, one double-click to scan drive C:). This repository is kept for reference.
+
 [![License: MIT](https://img.shields.io/github/license/xpeng5278-web/diskpilot)](LICENSE)
 [![Node.js >= 20](https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](#快速试用)
