@@ -28,6 +28,11 @@
           <div class="scan-row"><input id="scan-path" type="text" placeholder="C:\Users\..." aria-describedby="scan-help" spellcheck="false"><button id="browse" class="button secondary" aria-describedby="scan-help">选择文件夹</button><button id="scan" class="button outline" disabled>扫描此路径</button></div>
         </div>
       </div>
+      <aside id="wiztree-notice" class="wiztree-notice hidden" aria-labelledby="wiztree-title">
+        <h2 id="wiztree-title">未检测到 WizTree</h2>
+        <p>DiskPilot 使用本机安装的免费 WizTree 扫描磁盘。请从 <a href="https://diskanalyzer.com/download" target="_blank" rel="noopener">WizTree 官网下载</a>，或在终端运行 <code>winget install AntibodySoftware.WizTree</code>，安装后重启 DiskPilot。</p>
+        <p>也可设置环境变量 <code>WIZTREE_PATH</code> 指向 <code>WizTree64.exe</code> 或 <code>WizTree.exe</code>，然后重启 DiskPilot。扫描暂不可用；“加载示例报告”无需 WizTree。</p>
+      </aside>
       <div id="status" class="status" role="status"><span class="status-indicator"></span><span>请选择扫描范围，或加载示例报告</span></div>
       <div id="scan-progress" class="scan-progress hidden" aria-live="polite">
         <div class="progress-heading"><strong id="progress-title">正在扫描</strong><span id="progress-count"></span><button id="cancel-scan" class="button subtle" type="button">取消扫描</button></div>

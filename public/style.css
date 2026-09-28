@@ -173,3 +173,10 @@ th { color: #393939; text-align: left; font-weight: 600; background: #f4f4f4; }
   .plan-tabs button { padding: 6px 3px; font-size: 11px; }
   .candidate { gap: 7px; }
 }
+
+.wiztree-notice { margin: 16px; padding: 16px; border-left: 3px solid #b28600; background: #fcf4d6; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.wiztree-notice h2 { margin: 0 0 8px; font-size: 16px; }
+.wiztree-notice p { margin: 8px 0 0; }
+.wiztree-notice a { color: #0043ce; }
+.wiztree-notice a:focus-visible { outline: 2px solid #0f62fe; outline-offset: 2px; }
+.wiztree-notice code { white-space: normal; }

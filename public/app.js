@@ -9,6 +9,7 @@ let statusOverride = null;
 let busy = false;
 let submitting = false;
 let fixedDrives = [];
+let wizTreeMissing = false;
 let selectedPaths = new Set();
 const scanKey = scan => JSON.stringify([scan.root, scan.scannedAt]);
 const selectionKey = scan => `diskpilot.review:${scanKey(scan)}`;
@@ -52,8 +53,13 @@ function renderSelectionSummary() {
 
 function updateControls() {
   const locked = busy || submitting || pickingFolder;
-  $('#scan-all').disabled = locked || !isWindows || !fixedDrives.length;
-  $('#scan').disabled = locked || !$('#scan-path').value.trim();
+  $('#scan-all').disabled = locked || wizTreeMissing || !isWindows || !fixedDrives.length;
+  $('#scan').disabled = locked || wizTreeMissing || !$('#scan-path').value.trim();
+  for (const id of ['#scan-all', '#scan']) {
+    $(id).title = wizTreeMissing ? '未检测到 WizTree，请按下方提示安装后重启 DiskPilot' : '';
+    if (wizTreeMissing) $(id).setAttribute('aria-describedby', 'wiztree-notice');
+    else $(id).removeAttribute('aria-describedby');
+  }
   $('#browse').disabled = locked || !isWindows;
   $('#browse').setAttribute('aria-disabled', String($('#browse').disabled));
   $('#demo').disabled = locked;
@@ -87,6 +93,24 @@ function renderProgress(progress) {
   }
 }
 
+function showWizTreeGuidance(missing) {
+  wizTreeMissing = missing;
+  $('#wiztree-notice').classList.toggle('hidden', !missing);
+  updateControls();
+}
+
+async function loadWizTreeStatus() {
+  try {
+    const response = await fetch('/api/wiztree');
+    if (!response.ok) throw new Error('无法检测 WizTree');
+    const data = await response.json();
+    showWizTreeGuidance(data.supported && !data.found);
+  } catch {
+    // A failed status request is not evidence that WizTree is missing.
+    setStatus('无法检测 WizTree，请确认本机服务正常后刷新页面。', 'error');
+  }
+}
+
 async function loadDrives() {
   if (!isWindows) {
     $('#drives-hint').textContent = '本机固定磁盘扫描仅支持 Windows';
@@ -112,6 +136,7 @@ function node(tag, className, value) {
 }
 
 function setStatus(message, kind = '') {
+  if (kind === 'error' && /(?:未检测到|未找到) WizTree/.test(message)) showWizTreeGuidance(true);
   const status = $('#status');
   status.className = `status ${kind}`;
   status.lastElementChild.textContent = message;
@@ -341,5 +366,6 @@ if (!isWindows) {
 }
 updateControls();
 loadDrives();
+loadWizTreeStatus();
 refreshState();
 setInterval(refreshState, 1500);

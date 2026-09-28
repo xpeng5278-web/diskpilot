@@ -5,16 +5,39 @@ const { randomUUID } = require('node:crypto');
 const { analyzeWizTreeCsv, mergeScanResults } = require('./analyzer');
 const { listFixedDrives } = require('./drives');
 
-function findWizTree() {
-  const configured = process.env.WIZTREE_PATH;
-  const candidates = configured ? [configured] : [
-    path.resolve(__dirname, '..', '..', '..', '..', 'Tools', 'WizTree', 'WizTree64.exe'),
-    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'WizTree', 'WizTree64.exe'),
-    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'WizTree', 'WizTree64.exe')
+const installHint = Object.freeze({
+  url: 'https://diskanalyzer.com/download',
+  command: 'winget install AntibodySoftware.WizTree',
+  environmentVariable: 'WIZTREE_PATH',
+  message: '未检测到 WizTree；请从 https://diskanalyzer.com/download 安装，或在终端运行 winget install AntibodySoftware.WizTree，然后重启 DiskPilot；也可设置 WIZTREE_PATH 指向 WizTree64.exe 或 WizTree.exe。加载示例报告无需 WizTree。'
+});
+
+function wizTreeCandidates() {
+  if (process.env.WIZTREE_PATH) return [process.env.WIZTREE_PATH];
+  const directories = [
+    path.resolve(__dirname, '..', 'Tools', 'WizTree'),
+    path.resolve(__dirname, '..', '..', '..', '..', 'Tools', 'WizTree'),
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'WizTree'),
+    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'WizTree'),
+    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'WizTree')] : [])
   ];
-  const executable = candidates.find(candidate => candidate && fs.existsSync(candidate));
-  if (!executable) throw new Error('未找到 WizTree64.exe；请安装 WizTree，或设置 WIZTREE_PATH 指向它');
-  return executable;
+  return directories.flatMap(directory => ['WizTree64.exe', 'WizTree.exe'].map(name => path.join(directory, name)));
+}
+
+function wizTreeStatus() {
+  let executable = null;
+  try {
+    executable = wizTreeCandidates().find(candidate => {
+      try { return fs.statSync(candidate).isFile(); } catch { return false; }
+    }) || null;
+  } catch { /* Detection must remain safe even when a candidate cannot be inspected. */ }
+  return { found: executable !== null, path: executable, platform: process.platform, supported: process.platform === 'win32', installHint };
+}
+
+function findWizTree() {
+  const status = wizTreeStatus();
+  if (!status.found) throw new Error(installHint.message);
+  return status.path;
 }
 
 async function scanWithWizTree(input, onProgress, signal) {
@@ -58,4 +81,4 @@ async function scanFixedDrives(drives, scan, onProgress, signal) {
   return mergeScanResults(results, drives);
 }
 
-module.exports = { findWizTree, scanWithWizTree, scanAllFixedDrives, scanFixedDrives };
+module.exports = { wizTreeStatus, findWizTree, scanWithWizTree, scanAllFixedDrives, scanFixedDrives };

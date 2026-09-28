@@ -2,7 +2,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { markdownReport, analyzeWizTreeCsv } = require('./analyzer');
-const { scanWithWizTree, scanAllFixedDrives } = require('./wiztree');
+const { scanWithWizTree, scanAllFixedDrives, wizTreeStatus } = require('./wiztree');
 const { listFixedDrives } = require('./drives');
 const { chooseFolder } = require('./folder-picker');
 
@@ -58,6 +58,7 @@ async function handler(request, response) {
   if (!host || !/^((localhost|127\.0\.0\.1):\d+)$/.test(host)) return json(response, 403, { error: '只接受本机页面的请求' });
   if (request.method === 'POST' && origin !== `http://${host}`) return json(response, 403, { error: '只接受本机页面的请求' });
   try {
+    if (request.method === 'GET' && url.pathname === '/api/wiztree') return json(response, 200, wizTreeStatus());
     if (request.method === 'GET' && url.pathname === '/api/state') return json(response, 200, state);
     if (request.method === 'GET' && url.pathname === '/api/drives') return json(response, 200, { drives: await listFixedDrives() });
     if (['GET', 'POST'].includes(request.method) && url.pathname === '/api/report') {
