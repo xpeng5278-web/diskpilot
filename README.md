@@ -1,12 +1,18 @@
 # DiskPilot
 
+[![License: MIT](https://img.shields.io/github/license/xpeng5278-web/diskpilot)](LICENSE)
+[![Node.js >= 20](https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white)](package.json)
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](#快速试用)
+[![Release](https://img.shields.io/github/v/release/xpeng5278-web/diskpilot?include_prereleases&label=release)](https://github.com/xpeng5278-web/diskpilot/releases)
+
 看懂 Windows 磁盘空间去了哪里，再决定如何整理。DiskPilot 借助本机 WizTree 扫描，将占用按用途分类，列出最大的文件和文件夹，并生成可导出的中文复核报告。扫描结果留在本机；项目目前只提供建议，不会删除或迁移文件。
 
 DiskPilot is a local-first Windows disk-space diagnosis tool powered by your own WizTree installation. It groups disk usage, highlights large paths, and exports a reviewable report. No scan data is uploaded; no files are deleted or moved.
 
-![DiskPilot 示例报告界面，使用内置模拟数据](docs/images/demo-dashboard.jpg)
+![DiskPilot 演示：加载示例报告、查看分类、在重度方案中勾选待复核路径（内置示例数据）](docs/images/demo.gif)
 
-*截图来自内置示例报告，不是本机扫描。当前为开发预览版，尚无一键安装包。*
+*演示使用内置示例数据（几 KB 的模拟路径），不是本机扫描。当前为开发预览版，尚无一键安装包。*
+*Demo uses the built-in sample report, not a real scan.*
 
 ## 快速试用
 
@@ -32,7 +38,12 @@ npm run desktop
 - 对系统目录、开发缓存、构建产物、下载目录和个人文件做规则分类。
 - 轻度、中度、重度方案展示候选空间，帮助决定先检查什么。
 - 所有分析在本机完成；WizTree 生成的临时 CSV 解析后立即删除，不上传到外部服务。
+- 在分级方案中勾选待复核路径，导出包含勾选清单的 Markdown 报告；勾选只表示待你核对，不会触发任何操作。
 - 只提供建议，不执行文件删除或迁移。
+
+![DiskPilot 示例报告界面，使用内置模拟数据](docs/images/demo-dashboard.jpg)
+
+*静态截图同样来自内置示例报告，不是本机扫描。*
 
 ## 运行
 
